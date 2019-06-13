@@ -1,0 +1,116 @@
+#!/bin/sh
+
+while getopts :c: opt; do
+	case $opt in
+	c)
+		count=$OPTARG
+		;;
+	?)
+		echo "usage: `basename $0` [-c count] [surah [verse]]" >&2
+		exit 1
+	esac
+done
+shift $(($OPTIND - 1))
+
+cd ~/.quran/text
+
+file=$QURAN_TEXT
+if [ ! "$file" ]; then
+	file=`ls | fgrep -vx surahs | head -n 1`
+fi
+
+if ! [ -f "$file" ]; then
+	echo "`basename $0`: invalid text ($file)" >&2
+	exit 1
+fi
+
+if [ ! "$1" ] && [ "$count" = 1 ]; then
+	if [ -t 1 ]; then
+		fortune "$file" | less
+	else
+		fortune "$file"
+	fi
+	exit
+fi
+
+read_int() {
+	out=`od -j $2 -N $3 -t x$3 $1 2> /dev/null`
+	if [ $? != 0 ]; then return 1; fi
+	hex=`echo "$out" | head -n 1 | awk '{
+	if($2=="")exit 1
+	if(length($2)%2!=0)$2="0"$2
+	printf("0x");for(i=length($2)-1;i>0;i-=2)printf(substr($2,i,2))
+	printf("\n")
+	}'`
+	if [ $? != 0 ]; then return 1; fi
+	printf "%d\n" "$hex"
+}
+
+size=`wc -c $file.dat | awk '{print $1}'`
+num=`read_int $file.dat 4 4`
+off=$(((size-24)/(num+1)))
+get_offset() {
+	if [ "$2" -lt 0 ]; then return 1; fi
+	read_int $1.dat $((24+$off*$2)) $off
+}
+
+get_surah() {
+	offset=`get_offset surahs $(($1-1))`
+	if [ $? != 0 ]; then return 1; fi
+	tail -c +$(($offset+1)) surahs | head -n 1
+}
+
+if [ "$1" ]; then
+	test "$1" -ge 1 2> /dev/null; res=$?
+	if [ "$res" -gt 1 ]; then
+		surah=`awk -F '\t' -v OFS='\t' -v name="$1" '{
+			gsub(/[-'\'']/, "", $2)
+			if (index(tolower($2), name)) {
+				print
+				exit
+			}
+		}' surahs`
+	fi
+	if [ ! "$surah" ]; then
+		if [ "$res" != 0 ] || [ "$1" -gt 114 ]; then
+			echo `basename $0`: invalid surah >&2
+			exit 1
+		fi
+		surah=`get_surah $1`
+	fi
+	pos=`echo "$surah" | cut -f 4`
+	if [ "$2" ]; then
+		ayas=`echo "$surah" | cut -f 3`
+		test "$2" -ge 1 2> /dev/null; res=$?
+		if [ "$res" != 0 ] || [ "$2" -gt "$ayas" ]; then
+			echo `basename $0`: invalid verse >&2
+			exit 1
+		fi
+		pos=$(($pos+$2-1))
+	fi
+else
+	pos=`awk -v max="$num" 'BEGIN{srand();print int(rand()*max)}'`
+fi
+
+offset=`get_offset $file $pos`
+if [ ! "$count" ] && [ -t 1 ]; then
+	less +${offset}P $file
+else
+	if [ ! "$count" ]; then
+		if [ "$2" ]; then
+			count=1
+		elif [ "$1" ]; then
+			count="-"
+		else
+			count=0
+		fi
+	fi
+	tail -c +$((offset+1)) $file | awk -v RS='%' -v count="$count" '{
+		split($NF, sv, ":")
+		if (sv[2] == 1 && NR != 1 && count == "-")
+			exit
+		printf("%s", $0)
+		++i;
+		if (i == count) exit
+	}' | if [ -t 1 ]; then less; else cat; fi
+fi
