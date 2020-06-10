@@ -16,7 +16,7 @@ cd ~/.quran/text
 
 file=$QURAN_TEXT
 if [ ! "$file" ]; then
-	file=`ls | fgrep -vx surahs | head -n 1`
+	file=`ls | grep -vx surahs | head -n 1`
 fi
 
 if ! [ -f "$file" ]; then

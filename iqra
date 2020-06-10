@@ -33,7 +33,7 @@ play() {
 
 while IFS= read line; do
 	echo "$line"
-	if echo "$line" | fgrep -q -- --; then
+	if echo "$line" | grep -q -- --; then
 		pos=`echo "$line" | awk '{print $NF}'`
 		surah=`echo $pos | cut -d : -f 1`
 		verse=`echo $pos | cut -d : -f 2`
