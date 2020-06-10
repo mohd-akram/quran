@@ -1,24 +1,27 @@
 #!/bin/sh
 # Recitations list download
 echo "Downloading list of recitations"
-url=http://www.everyayah.com
-recitations=`curl $url/data/status.php | awk -F '[<>]' -v url="$url" '
-/<span><strong>/ {
-	match($5, /[[:digit:]]+/)
-	name = tolower(substr($5, 1, RSTART-2))
+recitations=`curl https://everyayah.com/recitations_ayat.html | awk -F '[<>]' '
+/<strong>.*[Kk]bps<\/strong>/ {
+	if (match($3, /files missing/)) {
+		skip = 1
+		next
+	}
+	match($3, /[0-9]/)
+	name = tolower(substr($3, 1, RSTART-2))
 	gsub(/[ _]/, "-", name)
 	gsub(/[^-0-9a-z]/, "", name)
-	quality = substr($5, RSTART, RLENGTH) + 0
-	if (quality > names[name]) {
-		names[name] = quality
-		found = 1
-	}
 }
-/>GO</ {
-	if (found) {
-		split($2, attr, "\"")
-		printf("%s\t%s%s000_versebyverse.zip\n", name, url, attr[2])
-		found = 0
+/ZIP/ {
+	if (skip) {
+		skip = 0
+		next
+	}
+	split($2, attr, "\"")
+	url = attr[2]
+	if (!names[name]) {
+		printf("%s\t%s\n", name, url)
+		names[name] = 1
 	}
 }
 '`
@@ -143,7 +146,7 @@ else
 	url=`echo "$recitations" | awk -F '\t' -v recitation="$recitation" '
 		$1 == recitation { print $2; exit }
 	'`
-	curl "$url" > $recitation.zip
+	curl -L "$url" > $recitation.zip
 	echo "Extracting recitation ($recitation)"
 	unzip "$recitation" -d "$recitation" > /dev/null
 fi
