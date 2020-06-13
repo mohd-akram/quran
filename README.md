@@ -16,7 +16,8 @@ Requirements
 Install
 -------
 
-Copy `tanzil`, `quran` and `iqra` to somewhere in your `PATH`.
+Run `make install` as root to install to `/usr/local`. You can change the
+install location by passing the `prefix` option to `make`.
 
 Usage
 -----
