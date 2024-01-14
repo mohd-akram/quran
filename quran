@@ -1,116 +1,109 @@
 #!/bin/sh
 
-while getopts :c: opt; do
-	case $opt in
-	c)
-		count=$OPTARG
-		;;
-	?)
-		echo "usage: `basename $0` [-c count] [surah [verse]]" >&2
-		exit 1
-	esac
-done
-shift $(($OPTIND - 1))
+set -euo pipefail
 
-cd ~/.quran/text
+: "${XDG_DATA_HOME=$HOME/.local/share}"
+: "${PAGER=more}"
 
-file=$QURAN_TEXT
-if [ ! "$file" ]; then
-	file=`ls | grep -vx surahs | head -n 1`
+if ! [ -t 1 ]; then
+	PAGER=cat
 fi
 
+count=
+while getopts :c: opt; do
+	case $opt in
+	c) count=$OPTARG ;;
+	?) printf >&2 'usage: %s [-c count] [surah [verse]]\n' \
+		"$(basename "$0")"; exit 2
+	esac
+done
+shift $((OPTIND-1))
+
+cd "$XDG_DATA_HOME/quran/text"
+
+file=${QURAN_TEXT:-$(ls | grep -vx -e surahs -e '.*\.dat' | head -n1)}
+
 if ! [ -f "$file" ]; then
-	echo "`basename $0`: invalid text ($file)" >&2
+	printf >&2 '%s: invalid text (%s)\n' "$(basename "$0")" "$file"
 	exit 1
 fi
 
-if [ ! "$1" ] && [ "$count" = 1 ]; then
-	if [ -t 1 ]; then
-		fortune "$file" | less
-	else
-		fortune "$file"
-	fi
+if [ $# -eq 0 ] && [ "$count" = 1 ]; then
+	fortune "$file" | $PAGER
 	exit
 fi
 
 read_int() {
-	out=`od -j $2 -N $3 -t x$3 $1 2> /dev/null`
-	if [ $? != 0 ]; then return 1; fi
-	hex=`echo "$out" | head -n 1 | awk '{
-	if($2=="")exit 1
-	if(length($2)%2!=0)$2="0"$2
-	printf("0x");for(i=length($2)-1;i>0;i-=2)printf(substr($2,i,2))
-	printf("\n")
-	}'`
-	if [ $? != 0 ]; then return 1; fi
-	printf "%d\n" "$hex"
+	printf '%d\n' \
+	"$(od -j "$2" -N "$3" -t "x$3" "$1" 2>/dev/null | head -n1 | awk '{
+		if ($2 == "") exit 1
+		if (length($2) % 2 != 0) $2 = "0" $2
+		printf "0x"
+		for (i = length($2)-1; i > 0; i-=2)
+			printf "%s", substr($2, i, 2)
+		printf "\n"
+	}')"
 }
 
-size=`wc -c $file.dat | awk '{print $1}'`
-num=`read_int $file.dat 4 4`
-off=$(((size-24)/(num+1)))
+size=$(wc -c "$file.dat" | awk '{print $1}')
+max=$(read_int "$file.dat" 4 4)
+off=$(((size-24)/(max+1)))
+
 get_offset() {
-	if [ "$2" -lt 0 ]; then return 1; fi
-	read_int $1.dat $((24+$off*$2)) $off
+	read_int "$1.dat" $((24+off*$2)) "$off"
 }
 
 get_surah() {
-	offset=`get_offset surahs $(($1-1))`
-	if [ $? != 0 ]; then return 1; fi
-	tail -c +$(($offset+1)) surahs | head -n 1
+	tail -c +$(($(get_offset surahs $(($1-1)))+1)) surahs | head -n1
 }
 
-if [ "$1" ]; then
-	test "$1" -ge 1 2> /dev/null; res=$?
-	if [ "$res" -gt 1 ]; then
-		surah=`awk -F '\t' -v OFS='\t' -v name="$1" '{
+if [ $# -gt 0 ]; then
+	isnum=$(test "$1" -eq "$1" 2>/dev/null && echo 1||:)
+	surah=
+	if [ ! "$isnum" ]; then
+		surah=$(awk -F '\t' -v OFS='\t' -v name="$1" '{
 			gsub(/[-'\'']/, "", $2)
 			if (index(tolower($2), name)) {
 				print
 				exit
 			}
-		}' surahs`
+		}' surahs)
 	fi
 	if [ ! "$surah" ]; then
-		if [ "$res" != 0 ] || [ "$1" -gt 114 ]; then
-			echo `basename $0`: invalid surah >&2
+		if [ ! "$isnum" ] || [ "$1" -lt 1 ] || [ "$1" -gt 114 ]; then
+			printf >&2 '%s: invalid surah\n' "$(basename "$0")"
 			exit 1
 		fi
-		surah=`get_surah $1`
+		surah=$(get_surah "$1")
 	fi
-	pos=`echo "$surah" | cut -f 4`
-	if [ "$2" ]; then
-		ayas=`echo "$surah" | cut -f 3`
-		test "$2" -ge 1 2> /dev/null; res=$?
-		if [ "$res" != 0 ] || [ "$2" -gt "$ayas" ]; then
-			echo `basename $0`: invalid verse >&2
+	pos=$(printf '%s\n' "$surah" | cut -f 4)
+	if [ $# -gt 1 ]; then
+		ayas=$(printf '%s\n' "$surah" | cut -f 3)
+		isnum=$(test "$2" -eq "$2" 2>/dev/null && echo 1||:)
+		if [ ! "$isnum" ] || [ "$2" -lt 1 ] || [ "$2" -gt "$ayas" ]; then
+			printf >&2 '%s: invalid verse\n' "$(basename "$0")"
 			exit 1
 		fi
-		pos=$(($pos+$2-1))
+		pos=$((pos+$2-1))
 	fi
 else
-	pos=`awk -v max="$num" 'BEGIN{srand();print int(rand()*max)}'`
+	pos=$(awk -v max="$max" 'BEGIN{srand();print int(rand()*max)}')
 fi
 
-offset=`get_offset $file $pos`
-if [ ! "$count" ] && [ -t 1 ]; then
-	less +${offset}P $file
-else
-	if [ ! "$count" ]; then
-		if [ "$2" ]; then
-			count=1
-		elif [ "$1" ]; then
-			count="-"
-		else
-			count=0
-		fi
+offset=$(get_offset "$file" "$pos")
+if [ ! "$count" ]; then
+	if [ $# -gt 1 ]; then
+		count=1
+	elif [ $# -gt 0 ]; then
+		count=-
+	else
+		count=0
 	fi
-	tail -c +$((offset+1)) $file | awk -v RS='%' -v count="$count" '{
-		split($NF, sv, ":")
-		if (sv[2] == 1 && NR != 1 && count == "-")
-			exit
-		printf("%s", $0)
-		++i;
-		if (i == count) exit
-	}' | if [ -t 1 ]; then less; else cat; fi
 fi
+tail -c +$((offset+1)) "$file" | awk -v RS='%' -v count="$count" '{
+	split($NF, sv, ":")
+	if (sv[2] == 1 && NR != 1 && count == "-") exit
+	printf "%s", $0
+	++i;
+	if (i == count) exit
+}' | $PAGER

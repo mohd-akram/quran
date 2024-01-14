@@ -7,7 +7,6 @@ Requirements
 ------------
 
 - POSIX shell
-- less
 - unzip
 - curl
 - fortune
@@ -23,7 +22,7 @@ Usage
 -----
 
 Run `tanzil` and follow the prompts to download a Quran text and audio
-recitation to `~/.quran`.
+recitation.
 
 Examples:
 
@@ -50,3 +49,5 @@ Environment
 
 - `QURAN_TEXT` - preferred text or translation
 - `QURAN_RECITATION` - preferred recitation
+- `XDG_DATA_HOME` - text and audio files are stored in `$XDG_DATA_HOME/quran`
+- `PAGER` - pager used to display text

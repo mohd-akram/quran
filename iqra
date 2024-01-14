@@ -1,42 +1,46 @@
 #!/bin/sh
-cd ~/.quran/audio
 
-installed=`ls | head -n 1`
-dir=${QURAN_RECITATION:-$installed}
+set -euo pipefail
+
+: "${XDG_DATA_HOME=$HOME/.local/share}"
+
+cd "$XDG_DATA_HOME/quran/audio"
+
+dir=${QURAN_RECITATION:-$(ls | head -n1)}
 
 if ! [ -d "$dir" ]; then
-	echo "`basename $0`: invalid recitation ($dir)" >&2
+	printf >&2 '%s: invalid recitation (%s)\n' "$(basename "$0")" "$dir"
 	exit 1
 fi
 
-if command -v afplay > /dev/null; then
+if command -v afplay >/dev/null; then
 	player=afplay
 else
 	player="mpg123 -q"
-	trap exit HUP INT TERM QUIT
+	trap exit HUP INT TERM
 fi
 
 play() {
-	if [ "$2" = 1 ]; then
-		f=`printf '%s/%03d%03d.mp3' "$dir" "$1" 0`
+	if [ "$2" -eq 1 ]; then
+		f=$(printf '%s/%03d%03d.mp3' "$dir" "$1" 0)
 		if ! [ -f "$f" ]; then
-			if [ "$1" = 1 ]; then
-				f=`printf '%s/audhubillah.mp3' "$dir"`
-			elif [ "$1" != 9 ]; then
-				f=`printf '%s/bismillah.mp3' "$dir"`
+			if [ "$1" -eq 1 ]; then
+				f=$(printf '%s/audhubillah.mp3' "$dir")
+			elif [ "$1" -ne 9 ]; then
+				f=$(printf '%s/bismillah.mp3' "$dir")
 			fi
 		fi
 		if [ -f "$f" ]; then $player "$f"; fi
 	fi
-	$player "`printf '%s/%03d%03d.mp3' "$dir" "$1" "$2"`"
+	$player "$(printf '%s/%03d%03d.mp3' "$dir" "$1" "$2")"
 }
 
-while IFS= read line; do
-	echo "$line"
-	if echo "$line" | grep -q -- --; then
-		pos=`echo "$line" | awk '{print $NF}'`
-		surah=`echo $pos | cut -d : -f 1`
-		verse=`echo $pos | cut -d : -f 2`
-		play $surah $verse
-	fi
+while IFS= read -r line; do
+	printf '%s\n' "$line"
+	case $line in *--*)
+		pos=$(printf '%s\n' "$line" | awk '{print $NF}')
+		surah=$(printf '%s\n' "$pos" | cut -d : -f 1)
+		verse=$(printf '%s\n' "$pos" | cut -d : -f 2)
+		play "$surah" "$verse"
+	esac
 done

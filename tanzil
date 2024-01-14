@@ -1,7 +1,13 @@
 #!/bin/sh
+
+set -euo pipefail
+
+: "${XDG_DATA_HOME=$HOME/.local/share}"
+
 # Recitations list download
-echo "Downloading list of recitations"
-recitations=`curl https://everyayah.com/recitations_ayat.html | awk -F '[<>]' '
+echo >&2 Downloading list of recitations
+recitations=$(curl -f https://everyayah.com/recitations_ayat.html |
+awk -F '[<>]' '
 /<strong>.*[Kk]bps<\/strong>/ {
 	if (match($3, /files missing/)) {
 		skip = 1
@@ -20,82 +26,77 @@ recitations=`curl https://everyayah.com/recitations_ayat.html | awk -F '[<>]' '
 	split($2, attr, "\"")
 	url = attr[2]
 	if (!names[name]) {
-		printf("%s\t%s\n", name, url)
+		printf "%s\t%s\n", name, url
 		names[name] = 1
 	}
 }
-'`
-echo
+')
+echo >&2
 
-echo "Downloading list of translations"
-translations=`curl http://tanzil.net/trans/ | awk -F '[<>]' '
-/class="flag"/ {
-	match($0, /href="[^"]+" title="Download"/)
-	split(substr($0, RSTART, RLENGTH), attr, "\"")
+# Translations list download
+echo >&2 Downloading list of translations
+translations=$(curl -f https://tanzil.net/trans/ | awk -v RS=" " '
+/^href="\/trans\/[^\/"]+"$/ {
+	split($0, attr, "\"")
 	url = attr[2]
 	split(url, parts, "/")
-	sub(/\./, "-", parts[5])
-	name = parts[5]
-	printf("%s\t%s\n", name, url)
+	sub(/\./, "-", parts[3])
+	name = parts[3]
+	printf "%s\thttps://tanzil.net%s\n", name, url
 }
-'`
-echo
+')
+echo >&2
 
 # Text selection
-types="simple-clean"
-printf "Select a text type:\n%s\n\n" "$types"
+types=simple-clean
+printf >&2 'Select a text type:\n%s\n\n' "$types"
 while true; do
 	default_type=simple-clean
-	printf "Type [$default_type]: "
-	read type
+	printf >&2 'Type [%s]: ' "$default_type"
+	read -r type
 	type=${type:-$default_type}
-	if echo "$types" | grep -x "$type"; then
+	if printf '%s\n' "$types" | grep -Fx "$type"; then
 		break
 	fi
 done
-echo
+echo >&2
 
 # Translation selection
-translation_names=`echo "$translations" | awk -F '\t' '{print $1}'`
-printf "Select a translation:\n%s\n\n" "$translation_names"
+translation_names=$(printf '%s\n' "$translations" | awk -F '\t' '{print $1}')
+printf >&2 'Select a translation:\n%s\n\n' "$translation_names"
 while true; do
 	default_translation=en-sahih
-	printf "Translation [$default_translation]: "
-	read translation
+	printf >&2 'Translation [%s]: ' "$default_translation"
+	read -r translation
 	translation=${translation:-$default_translation}
-	if echo "$translation_names" | grep -x "$translation"; then
+	if printf '%s\n' "$translation_names" | grep -Fx "$translation"; then
 		break
 	fi
 done
-echo
+echo >&2
 
 # Recitation selection
-recitation_names=`echo "$recitations" | awk -F '\t' '{print $1}'`
-printf "Select a recitation:\n%s\n\n" "$recitation_names"
+recitation_names=$(printf '%s\n' "$recitations" | awk -F '\t' '{print $1}')
+printf >&2 'Select a recitation:\n%s\n\n' "$recitation_names"
 while true; do
-	default_recitation="minshawy-murattal"
-	printf "Recitation [$default_recitation]: "
-	read recitation
+	default_recitation=minshawy-murattal
+	printf >&2 'Recitation [%s]: ' "$default_recitation"
+	read -r recitation
 	recitation=${recitation:-$default_recitation}
-	if echo "$recitation_names" | grep -x "$recitation"; then
+	if printf '%s\n' "$recitation_names" | grep -Fx "$recitation"; then
 		break
 	fi
 done
-echo
+echo >&2
 
 # Text download
-mkdir -p ~/.quran/text
-cd ~/.quran/text
-if [ -f "$type.dat" ] && [ -f surahs.dat ]; then
-	echo "Text already exits ($type)"
-else
-	echo "Downloading text ($type)"
-	text=`curl -X POST \
-		-d quranType=$type -d alef=true \
-		-d outType=txt-2 -d agree=true \
-		http://tanzil.net/pub/download/download.php`
+mkdir -p "$XDG_DATA_HOME/quran/text"
+cd "$XDG_DATA_HOME/quran/text"
+# Create metadata
+if ! [ -f surahs ] || ! [ -f surahs.dat ]; then
+	echo >&2 Downloading metadata
 	# Surahs fortune
-	curl http://tanzil.net/res/text/metadata/quran-data.xml | awk '
+	curl -f https://tanzil.net/res/text/metadata/quran-data.xml | awk '
 	/<sura / {
 	match($0, /index="[^"]+"/)
 	n = substr($0, RSTART+7, RLENGTH-8)
@@ -106,50 +107,63 @@ else
 	match($0, /start="[^"]+"/)
 	start = substr($0, RSTART+7, RLENGTH-8)
 	if (n != 1) print "%"
-	printf("%d\t%s\t%d\t%d\n", n, name, ayas, start)
+	printf "%d\t%s\t%d\t%d\n", n, name, ayas, start
 	}' > surahs
-	strfile surahs > /dev/null
-	# Quran fortune
-	echo "$text" | tr -d '\r' | awk -F '|' '
-	!$0 {exit}
-	{if (NR != 1) printf("%%\n");
-	printf("%s\n\t\t-- Quran %d:%d\n", $3, $1, $2)}
-	' | fold -s > $type
-	strfile $type > /dev/null
+	strfile surahs >/dev/null
+	echo >&2
 fi
-echo
-# Translation download
-if [ -f "$translation" ]; then
-	echo "Translation already exits ($translation)"
+# Download text
+if [ -f "$type" ] && [ -f "$type.dat" ]; then
+	printf >&2 'Text already exists (%s)\n' "$type"
 else
-	echo "Downloading translation ($translation)"
-	url=`echo "$translations" | awk -F '\t' -v translation="$translation" '
-		$1 == translation { print $2; exit }
-	'`
+	printf >&2 'Downloading text (%s)\n' "$type"
+	text=$(curl -fG \
+		-d quranType="$type" -d alef=true \
+		-d outType=txt-2 -d agree=true \
+		https://tanzil.net/pub/download/index.php)
 	# Quran fortune
-	curl -s "$url" | tr -d '\r' | awk -F '|' '
+	printf '%s\n' "$text" | tr -d '\r' | awk -F '|' '
 	!$0 {exit}
-	{if (NR != 1) printf("%%\n");
-	printf("%s\n\t\t-- Quran %d:%d\n", $3, $1, $2)}
-	' | fold -s > $translation
-	strfile $translation > /dev/null
+	{if (NR != 1) print "%";
+	printf "%s\n\t\t-- Quran %d:%d\n", $3, $1, $2}
+	' | fold -s > "$type"
+	strfile "$type" >/dev/null
 fi
-echo
+echo >&2
+# Download translation
+if [ -f "$translation" ] && [ -f "$translation.dat" ]; then
+	printf >&2 'Translation already exists (%s)\n' "$translation"
+else
+	printf >&2 'Downloading translation (%s)\n' "$translation"
+	url=$(printf '%s\n' "$translations" |
+	awk -F '\t' -v translation="$translation" '
+		$1 == translation { print $2; exit }
+	')
+	# Quran fortune
+	curl -f "$url" | tr -d '\r' | awk -F '|' '
+	!$0 {exit}
+	{if (NR != 1) print "%";
+	printf "%s\n\t\t-- Quran %d:%d\n", $3, $1, $2}
+	' | fold -s > "$translation"
+	strfile "$translation" >/dev/null
+fi
+echo >&2
 
 # Recitation download
-mkdir -p ~/.quran/audio
-cd ~/.quran/audio
+mkdir -p "$XDG_DATA_HOME/quran/audio"
+cd "$XDG_DATA_HOME/quran/audio"
 if [ -d "$recitation" ]; then
-	echo "Recitation already exits ($recitation)"
+	printf >&2 'Recitation already exists (%s)\n' "$recitation"
 else
-	echo "Downloading recitation ($recitation)"
-	url=`echo "$recitations" | awk -F '\t' -v recitation="$recitation" '
+	printf >&2 'Downloading recitation (%s)\n' "$recitation"
+	url=$(printf '%s\n' "$recitations" |
+	awk -F '\t' -v recitation="$recitation" '
 		$1 == recitation { print $2; exit }
-	'`
-	curl -L -C - -o "$recitation.zip" "$url"
-	echo "Extracting recitation ($recitation)"
-	unzip "$recitation" -d "$recitation" > /dev/null
+	')
+	curl -fLC - -o "$recitation.zip" "$url"
+	printf >&2 'Extracting recitation (%s)\n' "$recitation"
+	unzip "$recitation" -d "$recitation" >/dev/null
 fi
-echo
+echo >&2
 
-echo Done!
+echo >&2 Done!
