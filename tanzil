@@ -4,7 +4,6 @@ set -euo pipefail
 
 : "${XDG_DATA_HOME=$HOME/.local/share}"
 
-# Recitations list download
 echo >&2 Downloading list of recitations
 recitations=$(curl -f https://everyayah.com/recitations_ayat.html |
 awk -F '[<>]' '
@@ -33,7 +32,6 @@ awk -F '[<>]' '
 ')
 echo >&2
 
-# Translations list download
 echo >&2 Downloading list of translations
 translations=$(curl -f https://tanzil.net/trans/ | awk -v RS=" " '
 /^href="\/trans\/[^\/"]+"$/ {
@@ -47,7 +45,7 @@ translations=$(curl -f https://tanzil.net/trans/ | awk -v RS=" " '
 ')
 echo >&2
 
-# Text selection
+# Select text
 types=simple-clean
 printf >&2 'Select a text type:\n%s\n\n' "$types"
 while true; do
@@ -61,7 +59,7 @@ while true; do
 done
 echo >&2
 
-# Translation selection
+# Select translation
 translation_names=$(printf '%s\n' "$translations" | awk -F '\t' '{print $1}')
 printf >&2 'Select a translation:\n%s\n\n' "$translation_names"
 while true; do
@@ -75,7 +73,7 @@ while true; do
 done
 echo >&2
 
-# Recitation selection
+# Select recitation
 recitation_names=$(printf '%s\n' "$recitations" | awk -F '\t' '{print $1}')
 printf >&2 'Select a recitation:\n%s\n\n' "$recitation_names"
 while true; do
@@ -89,13 +87,13 @@ while true; do
 done
 echo >&2
 
-# Text download
+# Ensure text directory exists
 mkdir -p "$XDG_DATA_HOME/quran/text"
 cd "$XDG_DATA_HOME/quran/text"
-# Create metadata
+
+# Fetch metadata
 if ! [ -f surahs ] || ! [ -f surahs.dat ]; then
 	echo >&2 Downloading metadata
-	# Surahs fortune
 	curl -f https://tanzil.net/res/text/metadata/quran-data.xml | awk '
 	/<sura / {
 	match($0, /index="[^"]+"/)
@@ -112,7 +110,8 @@ if ! [ -f surahs ] || ! [ -f surahs.dat ]; then
 	strfile surahs >/dev/null
 	echo >&2
 fi
-# Download text
+
+# Fetch text
 if [ -f "$type" ] && [ -f "$type.dat" ]; then
 	printf >&2 'Text already exists (%s)\n' "$type"
 else
@@ -130,7 +129,8 @@ else
 	strfile "$type" >/dev/null
 fi
 echo >&2
-# Download translation
+
+# Fetch translation
 if [ -f "$translation" ] && [ -f "$translation.dat" ]; then
 	printf >&2 'Translation already exists (%s)\n' "$translation"
 else
@@ -149,9 +149,11 @@ else
 fi
 echo >&2
 
-# Recitation download
+# Ensure audio directory exists
 mkdir -p "$XDG_DATA_HOME/quran/audio"
 cd "$XDG_DATA_HOME/quran/audio"
+
+# Fetch recitation
 if [ -d "$recitation" ]; then
 	printf >&2 'Recitation already exists (%s)\n' "$recitation"
 else
