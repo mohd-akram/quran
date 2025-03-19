@@ -37,10 +37,6 @@ play() {
 
 while IFS= read -r line; do
 	printf '%s\n' "$line"
-	case $line in *--*)
-		pos=$(printf '%s\n' "$line" | awk '{print $NF}')
-		surah=$(printf '%s\n' "$pos" | cut -d : -f 1)
-		verse=$(printf '%s\n' "$pos" | cut -d : -f 2)
-		play "$surah" "$verse"
-	esac
+	printf '%s\n' "$line" | { grep -Eo '[0-9]+:[0-9]+' || :; } |
+	while IFS=: read surah verse; do play "$surah" "$verse"; done
 done
