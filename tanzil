@@ -77,7 +77,7 @@ echo >&2
 recitation_names=$(printf '%s\n' "$recitations" | awk -F '\t' '{print $1}')
 printf >&2 'Select a recitation:\n%s\n\n' "$recitation_names"
 while true; do
-	default_recitation=minshawy-murattal
+	default_recitation=alafasy
 	printf >&2 'Recitation [%s]: ' "$default_recitation"
 	read -r recitation
 	recitation=${recitation:-$default_recitation}
