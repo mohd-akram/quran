@@ -40,8 +40,8 @@ $ quran -c 5 3 | iqra     # Recite the first 5 verses of the 3rd chapter
 $ quran -c 0 78 | iqra    # Recite from the 78th chapter till the book's end
 $ quran -c - 2 10 | iqra  # Recite the 2nd chapter starting from its 10th verse
 
-$ QURAN_TEXT=en-sahih quran              # Specify text
-$ quran | QURAN_RECITATION=alafasy iqra  # Specify recitation
+$ QURAN_TEXT=simple-clean,en-sahih quran  # Specify text(s)
+$ quran | QURAN_RECITATION=alafasy iqra   # Specify recitation
 ```
 
 Environment
