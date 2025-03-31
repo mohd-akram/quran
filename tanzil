@@ -123,7 +123,7 @@ else
 	# Quran fortune
 	printf '%s\n' "$text" | tr -d '\r' | awk -F '|' '
 	!$0 {exit}
-	{if (NR != 1) print "%";
+	{if (NR != 1) print "%"
 	printf "%s\n\t\t-- Quran %d:%d\n", $3, $1, $2}
 	' | fold -s > "$type"
 	strfile "$type" >/dev/null
@@ -142,7 +142,7 @@ else
 	# Quran fortune
 	curl -f "$url" | tr -d '\r' | awk -F '|' '
 	!$0 {exit}
-	{if (NR != 1) print "%";
+	{if (NR != 1) print "%"
 	printf "%s\n\t\t-- Quran %d:%d\n", $3, $1, $2}
 	' | fold -s > "$translation"
 	strfile "$translation" >/dev/null

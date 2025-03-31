@@ -91,9 +91,9 @@ if [ $# -gt 0 ]; then
 	fi
 	pos=$(printf '%s\n' "$surah" | cut -f 4)
 	if [ $# -gt 1 ]; then
-		ayas=$(printf '%s\n' "$surah" | cut -f 3)
+		len=$(printf '%s\n' "$surah" | cut -f 3)
 		isnum=$(test "$2" -eq "$2" 2>/dev/null && echo 1||:)
-		if [ ! "$isnum" ] || [ "$2" -lt 1 ] || [ "$2" -gt "$ayas" ]; then
+		if [ ! "$isnum" ] || [ "$2" -lt 1 ] || [ "$2" -gt "$len" ]; then
 			printf >&2 '%s: invalid verse\n' "$(basename "$0")"
 			exit 1
 		fi
